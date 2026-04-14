@@ -97,17 +97,20 @@ def pose_estimation_chessboard(target_video, board_pattern, board_cellsize, targ
     while True:
         # Read an image from the video
         valid, img = video.read()
+        # 프레임 크기 조절
+        dim = (w, h)
+        img = cv.resize(img, dim, interpolation=cv.INTER_AREA)
         if not valid:
             break
 
         # Estimate the camera pose
         success, img_points = cv.findChessboardCorners(img, board_pattern, board_criteria)
         if success:
-            ret, rvec, tvec = cv.solvePnP(obj_points, img_points, K, dist_coeff)
+            ret, rvec, tvec = cv.solvePnP(obj_points, img_points, target_K, target_dist_coeff)
 
             # Draw the box on the image
-            line_lower, _ = cv.projectPoints(box_lower, rvec, tvec, K, dist_coeff)
-            line_upper, _ = cv.projectPoints(box_upper, rvec, tvec, K, dist_coeff)
+            line_lower, _ = cv.projectPoints(box_lower, rvec, tvec, target_K, target_dist_coeff)
+            line_upper, _ = cv.projectPoints(box_upper, rvec, tvec, target_K, target_dist_coeff)
             cv.polylines(img, [np.int32(line_lower)], True, (255, 0, 0), 2)
             cv.polylines(img, [np.int32(line_upper)], True, (0, 0, 255), 2)
             for b, t in zip(line_lower, line_upper):
