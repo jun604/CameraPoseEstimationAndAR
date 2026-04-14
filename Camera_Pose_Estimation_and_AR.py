@@ -78,7 +78,7 @@ def calib_camera_from_chessboard(images, board_pattern, board_cellsize, K=None, 
     # Calibrate the camera
     return cv.calibrateCamera(obj_points, img_points, gray.shape[::-1], K, dist_coeff, flags=calib_flags)
 
-def pose_estimation_chessboard(target_video, board_pattern, board_cellsize, target_K, target_dist_coeff, recorder, result_recorder, w, h):
+def pose_estimation_chessboard(target_video, board_pattern, board_cellsize, target_K, target_dist_coeff, result_recorder, w, h):
 
     board_criteria = cv.CALIB_CB_ADAPTIVE_THRESH + cv.CALIB_CB_NORMALIZE_IMAGE + cv.CALIB_CB_FAST_CHECK
 
@@ -87,9 +87,11 @@ def pose_estimation_chessboard(target_video, board_pattern, board_cellsize, targ
     assert video.isOpened(), 'Cannot read the given input, ' + target_video
 
     # Prepare a 3D box for simple AR
-    box_lower = board_cellsize * np.array([[4, 2,  0], [5, 2,  0], [5, 4,  0], [4, 4,  0]])
-    box_upper = board_cellsize * np.array([[4, 2, -1], [5, 2, -1], [5, 4, -1], [4, 4, -1]])
-
+    box_lower = board_cellsize * np.array([[4, 5,  0], [6, 5,  0], [5, 4,  0]])
+    box_upper = board_cellsize * np.array([[4, 5, -1], [6, 5, -1], [5, 4, -1]])
+    box_front = board_cellsize * np.array([[4, 5, 0], [6, 5, 0], [6, 4, -3], [4, 4, -3]])
+    box_box = board_cellsize * np.array([[0, 0, 0], [0, 6, 0], [9, 6, 0], [9, 0, 0]])
+ 
     # Prepare 3D points on a chessboard
     obj_points = board_cellsize * np.array([[c, r, 0] for r in range(board_pattern[1]) for c in range(board_pattern[0])])
 
@@ -97,11 +99,11 @@ def pose_estimation_chessboard(target_video, board_pattern, board_cellsize, targ
     while True:
         # Read an image from the video
         valid, img = video.read()
+        if not valid:
+            break
         # 프레임 크기 조절
         dim = (w, h)
         img = cv.resize(img, dim, interpolation=cv.INTER_AREA)
-        if not valid:
-            break
 
         # Estimate the camera pose
         success, img_points = cv.findChessboardCorners(img, board_pattern, board_criteria)
@@ -111,8 +113,12 @@ def pose_estimation_chessboard(target_video, board_pattern, board_cellsize, targ
             # Draw the box on the image
             line_lower, _ = cv.projectPoints(box_lower, rvec, tvec, target_K, target_dist_coeff)
             line_upper, _ = cv.projectPoints(box_upper, rvec, tvec, target_K, target_dist_coeff)
+            line_front, _ = cv.projectPoints(box_front, rvec, tvec, target_K, target_dist_coeff)
+            line_box, _ = cv.projectPoints(box_box, rvec, tvec, target_K, target_dist_coeff)
             cv.polylines(img, [np.int32(line_lower)], True, (255, 0, 0), 2)
             cv.polylines(img, [np.int32(line_upper)], True, (0, 0, 255), 2)
+            cv.polylines(img, [np.int32(line_front)], True, (255, 0, 255), 2)
+            cv.polylines(img, [np.int32(line_box)], True, (255, 255, 0), 2)
             for b, t in zip(line_lower, line_upper):
                 cv.line(img, np.int32(b.flatten()), np.int32(t.flatten()), (0, 255, 0), 2)
 
@@ -124,11 +130,13 @@ def pose_estimation_chessboard(target_video, board_pattern, board_cellsize, targ
 
         # Show the image and process the key event
         cv.imshow('Pose Estimation (Chessboard)', img)
+        result_recorder.write(img) # Record the video with the result
         key = cv.waitKey(10)
         if key == ord(' '):
             key = cv.waitKey()
         if key == 27: # ESC
             break
+        
 
     video.release()
     cv.destroyAllWindows()
@@ -154,7 +162,6 @@ if __name__ == '__main__':
     out_recorder = cv.VideoWriter("Play_" + video_name + "_" + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".avi", fourcc, fps, (target_width, target_height))
     #결과 영상
     result_recorder = cv.VideoWriter("Result_" + video_name + "_" + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".avi", fourcc, fps, (target_width, target_height))
-    result_play_recorder = cv.VideoWriter("Result_Play_" + video_name + "_" + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".avi", fourcc, fps, (target_width, target_height))
     img_select = select_img_from_video(video_file, board_pattern, out_recorder, target_width, target_height)
     assert len(img_select) > 0, 'There is no selected images!'
     rms, K, dist_coeff, rvecs, tvecs = calib_camera_from_chessboard(img_select, board_pattern, board_cellsize)
@@ -167,11 +174,10 @@ if __name__ == '__main__':
     print(f'* Distortion coefficient (k1, k2, p1, p2, k3, ...) = {dist_coeff.flatten()}')
 
     # Run distortion correction
-    pose_estimation_chessboard(video_file, board_pattern, board_cellsize, K, dist_coeff, result_play_recorder, result_recorder, target_width, target_height)
+    pose_estimation_chessboard(video_file, board_pattern, board_cellsize, K, dist_coeff, result_recorder, target_width, target_height)
 
     # 모든 작업 완료 후
     out_recorder.release()
     result_recorder.release()
-    result_play_recorder.release()
     cv.destroyAllWindows()
     print("Video saving completed.")
