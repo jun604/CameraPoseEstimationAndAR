@@ -1,4 +1,4 @@
-# Camera Calibration & Pose Estimation
+# AR with Camera Calibration & Pose Estimation
 OpenCV를 이용하여 카메라의 파라미터를 산출하고, 체스보드 기준의 3차원 포즈(Pose)를 추정하여 가상 객체를 증강하는 프로그램</br>
 solvePnP 알고리즘을 통해 카메라의 위치와 회전을 계산하고, projectPoints로 3D 도형을 이미지 평면에 투영하도록 구현</br>
 학습 이미지 선택 기능, 실시간 카메라 좌표 출력, 가상 3D 구조물 렌더링 및 영상 저장 지원
